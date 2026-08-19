@@ -11,6 +11,12 @@
      token dikirim ke browser lewat cookie httpOnly biasa (tanpa express-session,
      supaya tidak bergantung pada memori server yang di serverless bisa hilang
      kapan saja).
+
+   PENTING: Express 4 TIDAK otomatis menangkap error dari async handler —
+   kalau ada yang gagal (misalnya kredensial Redis belum ada/salah) dan tidak
+   ditangani, request akan menggantung tanpa balasan sama sekali ke browser.
+   Karena itu SEMUA route async di sini dibungkus asyncHandler() supaya
+   error apa pun selalu berakhir jadi balasan JSON yang jelas, bukan macet.
    ========================================================================== */
 
 require('dotenv').config();
@@ -24,7 +30,18 @@ const DB_KEY = 'rjk:db';
 const COUNTER_KEY = 'rjk:counter';
 const SESSION_TTL_SECONDS = 60 * 60 * 24 * 7; // 7 hari
 
-const redis = Redis.fromEnv(); // otomatis baca UPSTASH_REDIS_REST_URL/TOKEN atau KV_REST_API_URL/TOKEN
+/* Inisialisasi Redis dibungkus try/catch: kalau environment variable belum
+   ada sama sekali (database belum disambungkan di Vercel), ini tidak boleh
+   menjatuhkan seluruh aplikasi — cukup ditandai, lalu setiap route yang
+   butuh Redis akan membalas error yang jelas ("Database belum terhubung"). */
+let redis = null;
+let redisInitError = null;
+try {
+    redis = Redis.fromEnv(); // otomatis baca UPSTASH_REDIS_REST_URL/TOKEN atau KV_REST_API_URL/TOKEN
+} catch (e) {
+    redisInitError = e;
+    console.error('[RJK] Gagal inisialisasi Redis:', e.message);
+}
 
 function hashPassword(pw) {
     return crypto.createHash('sha256').update(SALT + String(pw)).digest('hex');
@@ -40,7 +57,20 @@ function defaultDb() {
     };
 }
 
+function ensureRedis() {
+    if (!redis) {
+        const err = new Error(
+            'Database Redis belum terhubung. Di Vercel: buka project -> Storage -> ' +
+            'Marketplace -> sambungkan Upstash Redis, lalu Redeploy. ' +
+            (redisInitError ? ('(Detail: ' + redisInitError.message + ')') : '')
+        );
+        err.isConfigError = true;
+        throw err;
+    }
+}
+
 async function readDb() {
+    ensureRedis();
     const data = await redis.get(DB_KEY); // @upstash/redis otomatis (de)serialize JSON
     if (!data) {
         const fresh = defaultDb();
@@ -50,7 +80,16 @@ async function readDb() {
     return Object.assign(defaultDb(), data);
 }
 async function writeDb(db) {
+    ensureRedis();
     await redis.set(DB_KEY, db);
+}
+
+/* Bungkus setiap async route handler dengan ini supaya reject/exception apa
+   pun otomatis diteruskan ke middleware error di bawah (bukan menggantung). */
+function asyncHandler(fn) {
+    return (req, res, next) => {
+        Promise.resolve(fn(req, res, next)).catch(next);
+    };
 }
 
 /* ---------------- COOKIE HELPERS (tanpa dependency tambahan) ---------------- */
@@ -73,27 +112,39 @@ function clearSessionCookie(res) {
     res.setHeader('Set-Cookie', 'rjk_session=; HttpOnly; Path=/; Max-Age=0; SameSite=Lax');
 }
 
-async function requireAuth(req, res, next) {
+const requireAuth = asyncHandler(async (req, res, next) => {
+    ensureRedis();
     const token = parseCookies(req).rjk_session;
     if (!token) return res.status(401).json({ ok: false, error: 'Belum login' });
     const valid = await redis.get('session:' + token);
     if (!valid) return res.status(401).json({ ok: false, error: 'Sesi berakhir, silakan login lagi' });
     next();
-}
+});
 
 const app = express();
 app.use(express.json({ limit: '5mb' })); // riwayat nota bisa lumayan besar
 
+/* Endpoint kecil untuk cek cepat status server & koneksi database —
+   buka langsung di browser: https://domain-kamu.vercel.app/api/health */
+app.get('/api/health', (req, res) => {
+    res.json({
+        ok: !redisInitError,
+        redisConnected: !!redis,
+        error: redisInitError ? redisInitError.message : null
+    });
+});
+
 /* ---------------------------- AUTH ROUTES ---------------------------- */
 
-app.get('/api/session', async (req, res) => {
+app.get('/api/session', asyncHandler(async (req, res) => {
+    ensureRedis();
     const token = parseCookies(req).rjk_session;
     if (!token) return res.json({ authenticated: false });
     const valid = await redis.get('session:' + token);
     res.json({ authenticated: !!valid });
-});
+}));
 
-app.post('/api/login', async (req, res) => {
+app.post('/api/login', asyncHandler(async (req, res) => {
     const { password } = req.body || {};
     const db = await readDb();
     if (typeof password === 'string' && hashPassword(password) === db.passwordHash) {
@@ -103,16 +154,17 @@ app.post('/api/login', async (req, res) => {
         return res.json({ ok: true });
     }
     return res.status(401).json({ ok: false, error: 'Password salah. Coba lagi.' });
-});
+}));
 
-app.post('/api/logout', async (req, res) => {
+app.post('/api/logout', asyncHandler(async (req, res) => {
+    ensureRedis();
     const token = parseCookies(req).rjk_session;
     if (token) await redis.del('session:' + token);
     clearSessionCookie(res);
     res.json({ ok: true });
-});
+}));
 
-app.post('/api/change-password', requireAuth, async (req, res) => {
+app.post('/api/change-password', requireAuth, asyncHandler(async (req, res) => {
     const { oldPassword, newPassword } = req.body || {};
     const db = await readDb();
     if (hashPassword(oldPassword || '') !== db.passwordHash) {
@@ -124,11 +176,11 @@ app.post('/api/change-password', requireAuth, async (req, res) => {
     db.passwordHash = hashPassword(newPassword);
     await writeDb(db);
     res.json({ ok: true });
-});
+}));
 
 /* ---------------------------- DATA ROUTES ----------------------------- */
 
-app.get('/api/data', requireAuth, async (req, res) => {
+app.get('/api/data', requireAuth, asyncHandler(async (req, res) => {
     const db = await readDb();
     const counter = (await redis.get(COUNTER_KEY)) || 0;
     res.json({
@@ -138,9 +190,9 @@ app.get('/api/data', requireAuth, async (req, res) => {
         activeTab: db.activeTab || 'pelanggan',
         counter
     });
-});
+}));
 
-app.put('/api/data', requireAuth, async (req, res) => {
+app.put('/api/data', requireAuth, asyncHandler(async (req, res) => {
     const db = await readDb();
     const body = req.body || {};
     if ('prices' in body) db.prices = body.prices;
@@ -149,13 +201,28 @@ app.put('/api/data', requireAuth, async (req, res) => {
     if ('activeTab' in body) db.activeTab = body.activeTab;
     await writeDb(db);
     res.json({ ok: true });
-});
+}));
 
-app.post('/api/next-invoice-number', requireAuth, async (req, res) => {
+app.post('/api/next-invoice-number', requireAuth, asyncHandler(async (req, res) => {
+    ensureRedis();
     const counter = await redis.incr(COUNTER_KEY); // atomic di Redis, aman walau diklik bersamaan
     const now = new Date();
     const ymd = now.getFullYear() + String(now.getMonth() + 1).padStart(2, '0') + String(now.getDate()).padStart(2, '0');
     res.json({ number: 'RJK-' + ymd + '-' + String(counter).padStart(4, '0'), counter });
+}));
+
+/* ---------------------------- ERROR HANDLER ---------------------------- */
+/* Jaring pengaman terakhir: apa pun yang gagal di route manapun di atas akan
+   selalu berakhir sebagai balasan JSON yang jelas ke browser — tidak pernah
+   menggantung tanpa respons. */
+app.use((err, req, res, next) => {
+    console.error('[RJK] Error:', err);
+    res.status(err.isConfigError ? 503 : 500).json({
+        ok: false,
+        error: err.isConfigError
+            ? err.message
+            : 'Terjadi kesalahan di server. Cek log deployment di Vercel untuk detail.'
+    });
 });
 
 module.exports = app;

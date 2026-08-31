@@ -1,0 +1,647 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RISE JAYA KUSEN — Kalkulator &amp; Nota</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- ==============================
+     AUTH SCREEN (login / setup)
+================================ -->
+<div id="authScreen" class="auth-screen">
+<div class="auth-card">
+    <div class="auth-logo">🪵 RISE JAYA KUSEN</div>
+
+    <div id="authLoginView">
+        <h2>Masuk</h2>
+        <p class="subtitle">Masukkan password untuk membuka RISE JAYA KUSEN.</p>
+        <div class="field"><label>Password</label><input id="loginPass" type="password" placeholder="Password" onkeydown="if(event.key==='Enter')attemptLogin()"></div>
+        <button class="btn-primary" style="width:100%" onclick="attemptLogin()">🔓 Masuk</button>
+        <div id="authLoginError" class="auth-error"></div>
+    </div>
+</div>
+</div>
+
+<div id="appRoot" style="display:none">
+
+<button id="sidebarToggle" class="sidebar-toggle no-print" onclick="toggleSidebar()" aria-label="Buka menu">
+<span></span><span></span><span></span>
+</button>
+
+<div class="header">
+    <h1>RISE JAYA KUSEN</h1>
+    <p>Kalkulator Harga &amp; Nota — Kusen • Pintu • Jendela • Furniture</p>
+    <div class="ruler"></div>
+</div>
+
+<div id="sidebarOverlay" class="sidebar-overlay no-print" onclick="closeSidebar()"></div>
+
+<div class="app-layout">
+
+<nav id="sidebar" class="sidebar no-print">
+<div class="sidebar-logo">🪵 RISE JAYA KUSEN</div>
+<button id="navBtn-pelanggan" class="active" onclick="showTab('pelanggan')">👤 Data Pelanggan</button>
+<button id="navBtn-kalkulator" onclick="showTab('kalkulator')">🧮 Kalkulator Produk</button>
+<button id="navBtn-nota" onclick="showTab('nota')">🧾 Nota</button>
+<button id="navBtn-pembayaran" onclick="showTab('pembayaran')">💰 Pembayaran</button>
+<button id="navBtn-riwayat" onclick="showTab('riwayat')">📜 Riwayat Nota <span class="nav-badge" id="navBadgeRiwayat">0</span></button>
+<button id="navBtn-harga" onclick="showTab('harga')">⚙️ Pengaturan Harga</button>
+<div class="navbar-account">
+<button onclick="promptChangePassword()" title="Ganti Password">🔑 Ganti Password</button>
+<button onclick="logout()" title="Keluar">🚪 Keluar</button>
+</div>
+</nav>
+
+<div class="main-content">
+
+<div id="editBanner" class="edit-banner no-print">
+<span id="editBannerText"></span>
+<button class="btn-success" style="flex:none" onclick="selesaiEdit()">✅ Selesai Edit</button>
+</div>
+
+
+<!-- ==============================
+     DATA PELANGGAN
+================================ -->
+<section id="tab-pelanggan" class="panel no-print tab-panel active">
+<div class="title">
+    <span>👤 Data Pelanggan</span>
+    <span id="invoiceNumberDisplay" style="font-size:12px;color:#7a6f5d;font-weight:700"></span>
+</div>
+<div class="grid">
+<div class="field"><label>Nama Pelanggan</label><input id="customerName" placeholder="Nama pelanggan" oninput="renderInvoiceHead()"></div>
+<div class="field"><label>No. WhatsApp</label><input id="customerPhone" placeholder="08xxxxxxxxxx" oninput="renderInvoiceHead()"></div>
+<div class="field"><label>Alamat</label><input id="customerAddress" placeholder="Alamat pelanggan" oninput="renderInvoiceHead()"></div>
+<div class="field"><label>Nama Proyek</label><input id="projectName" placeholder="Contoh: Rumah Bapak Andi" oninput="renderInvoiceHead()"></div>
+</div>
+</section>
+
+<!-- ==============================
+     PENGATURAN HARGA
+================================ -->
+<section id="tab-harga" class="panel no-print tab-panel">
+<div class="title">
+    <span>⚙️ Pengaturan Harga</span>
+    <button class="btn-secondary" onclick="togglePriceSettings()">Buka / Tutup</button>
+</div>
+
+<div id="priceSettings" style="display:none">
+<div class="note-box">Harga di sini dipakai otomatis oleh semua kalkulator di bawah, dan tersimpan di browser ini (tidak hilang saat reload).</div>
+
+<div class="price-section">
+<h3>🪵 Kusen Pintu ISI (U 80×200)</h3>
+<div class="price-table-wrap"><table class="price-table">
+<thead><tr><th>Jenis Kayu</th><th>Harga / Meter</th><th>Harga Standar</th></tr></thead>
+<tbody>
+<tr><td>Jati Super Jabar</td><td><input id="pp_kp_pm_jati" type="text" inputmode="numeric" pattern="[0-9]*"></td><td><input id="pp_kp_std_jati" type="text" inputmode="numeric" pattern="[0-9]*"></td></tr>
+<tr><td>Kamper Samarinda Oven</td><td><input id="pp_kp_pm_kamper" type="text" inputmode="numeric" pattern="[0-9]*"></td><td><input id="pp_kp_std_kamper" type="text" inputmode="numeric" pattern="[0-9]*"></td></tr>
+<tr><td>Meranti Merah Oven</td><td><input id="pp_kp_pm_meranti" type="text" inputmode="numeric" pattern="[0-9]*"></td><td><input id="pp_kp_std_meranti" type="text" inputmode="numeric" pattern="[0-9]*"></td></tr>
+<tr><td>Bayur Lokal Non Oven</td><td><input id="pp_kp_pm_bayur" type="text" inputmode="numeric" pattern="[0-9]*"></td><td><input id="pp_kp_std_bayur" type="text" inputmode="numeric" pattern="[0-9]*"></td></tr>
+</tbody></table></div>
+</div>
+
+<div class="price-section">
+<h3>🪵 Kusen Jendela U LL (40/50×150)</h3>
+<div class="price-table-wrap"><table class="price-table">
+<thead><tr><th>Jenis Kayu</th><th>Harga / Meter</th><th>Harga Standar</th></tr></thead>
+<tbody>
+<tr><td>Jati Super Jabar</td><td><input id="pp_kj_pm_jati" type="text" inputmode="numeric" pattern="[0-9]*"></td><td><input id="pp_kj_std_jati" type="text" inputmode="numeric" pattern="[0-9]*"></td></tr>
+<tr><td>Kamper Samarinda Oven</td><td><input id="pp_kj_pm_kamper" type="text" inputmode="numeric" pattern="[0-9]*"></td><td><input id="pp_kj_std_kamper" type="text" inputmode="numeric" pattern="[0-9]*"></td></tr>
+<tr><td>Meranti Merah Oven</td><td><input id="pp_kj_pm_meranti" type="text" inputmode="numeric" pattern="[0-9]*"></td><td><input id="pp_kj_std_meranti" type="text" inputmode="numeric" pattern="[0-9]*"></td></tr>
+<tr><td>Bayur Lokal Non Oven</td><td><input id="pp_kj_pm_bayur" type="text" inputmode="numeric" pattern="[0-9]*"></td><td><input id="pp_kj_std_bayur" type="text" inputmode="numeric" pattern="[0-9]*"></td></tr>
+</tbody></table></div>
+</div>
+
+<div class="price-section">
+<h3>🪟 Kusen Bovenlicht + Kaca 5mm (U 40×100)</h3>
+<div class="price-table-wrap"><table class="price-table">
+<thead><tr><th>Jenis Kayu</th><th>Harga / Meter</th><th>Harga Standar</th></tr></thead>
+<tbody>
+<tr><td>Jati Super Jabar</td><td><input id="pp_kb_pm_jati" type="text" inputmode="numeric" pattern="[0-9]*"></td><td><input id="pp_kb_std_jati" type="text" inputmode="numeric" pattern="[0-9]*"></td></tr>
+<tr><td>Kamper Samarinda Oven</td><td><input id="pp_kb_pm_kamper" type="text" inputmode="numeric" pattern="[0-9]*"></td><td><input id="pp_kb_std_kamper" type="text" inputmode="numeric" pattern="[0-9]*"></td></tr>
+<tr><td>Meranti Merah Oven</td><td><input id="pp_kb_pm_meranti" type="text" inputmode="numeric" pattern="[0-9]*"></td><td><input id="pp_kb_std_meranti" type="text" inputmode="numeric" pattern="[0-9]*"></td></tr>
+<tr><td>Bayur Lokal Non Oven</td><td><input id="pp_kb_pm_bayur" type="text" inputmode="numeric" pattern="[0-9]*"></td><td><input id="pp_kb_std_bayur" type="text" inputmode="numeric" pattern="[0-9]*"></td></tr>
+<tr><td><strong>Potongan jika Tanpa Kaca</strong></td><td colspan="2"><input id="pp_kb_potongan" type="text" inputmode="numeric" pattern="[0-9]*"></td></tr>
+</tbody></table></div>
+</div>
+
+<div class="price-section">
+<h3>🌬️ Loster / Ventilasi Kusen Pintu</h3>
+<div class="price-table-wrap"><table class="price-table">
+<thead><tr><th>Jenis Kayu</th><th>Harga Standar</th><th>Harga / Meter (untuk custom)</th></tr></thead>
+<tbody>
+<tr><td>Jati</td><td><input id="pp_lp_std_jati" type="text" inputmode="numeric" pattern="[0-9]*"></td><td><input id="pp_lp_pm_jati" type="text" inputmode="numeric" pattern="[0-9]*"></td></tr>
+<tr><td>Kamper</td><td><input id="pp_lp_std_kamper" type="text" inputmode="numeric" pattern="[0-9]*"></td><td><input id="pp_lp_pm_kamper" type="text" inputmode="numeric" pattern="[0-9]*"></td></tr>
+<tr><td>Meranti</td><td><input id="pp_lp_std_meranti" type="text" inputmode="numeric" pattern="[0-9]*"></td><td><input id="pp_lp_pm_meranti" type="text" inputmode="numeric" pattern="[0-9]*"></td></tr>
+<tr><td>Bayur</td><td><input id="pp_lp_std_bayur" type="text" inputmode="numeric" pattern="[0-9]*"></td><td><input id="pp_lp_pm_bayur" type="text" inputmode="numeric" pattern="[0-9]*"></td></tr>
+</tbody></table></div>
+</div>
+
+<div class="price-section">
+<h3>🌬️ Loster / Ventilasi Kusen Jendela</h3>
+<div class="price-table-wrap"><table class="price-table">
+<thead><tr><th>Jenis Kayu</th><th>Harga Standar</th><th>Harga / Meter (untuk custom)</th></tr></thead>
+<tbody>
+<tr><td>Jati</td><td><input id="pp_lj_std_jati" type="text" inputmode="numeric" pattern="[0-9]*"></td><td><input id="pp_lj_pm_jati" type="text" inputmode="numeric" pattern="[0-9]*"></td></tr>
+<tr><td>Kamper</td><td><input id="pp_lj_std_kamper" type="text" inputmode="numeric" pattern="[0-9]*"></td><td><input id="pp_lj_pm_kamper" type="text" inputmode="numeric" pattern="[0-9]*"></td></tr>
+<tr><td>Meranti</td><td><input id="pp_lj_std_meranti" type="text" inputmode="numeric" pattern="[0-9]*"></td><td><input id="pp_lj_pm_meranti" type="text" inputmode="numeric" pattern="[0-9]*"></td></tr>
+<tr><td>Bayur</td><td><input id="pp_lj_std_bayur" type="text" inputmode="numeric" pattern="[0-9]*"></td><td><input id="pp_lj_pm_bayur" type="text" inputmode="numeric" pattern="[0-9]*"></td></tr>
+</tbody></table></div>
+</div>
+
+<div class="price-section">
+<h3>🚪 Daun Pintu Kayu Full ISI (80×200)</h3>
+<div class="price-table-wrap"><table class="price-table">
+<thead><tr><th>Jenis Kayu</th><th>Harga Standar</th></tr></thead>
+<tbody>
+<tr><td>Jati Jabar</td><td><input id="pp_dpf_jati" type="text" inputmode="numeric" pattern="[0-9]*"></td></tr>
+<tr><td>Kamper Samarinda Oven</td><td><input id="pp_dpf_kamper" type="text" inputmode="numeric" pattern="[0-9]*"></td></tr>
+<tr><td>Meranti Merah Oven</td><td><input id="pp_dpf_meranti" type="text" inputmode="numeric" pattern="[0-9]*"></td></tr>
+<tr><td>Bayur Lokal Non Oven</td><td><input id="pp_dpf_bayur" type="text" inputmode="numeric" pattern="[0-9]*"></td></tr>
+</tbody></table></div>
+</div>
+
+<div class="price-section">
+<h3>🚪 Daun Pintu Triplek Semi Kayu (80×200)</h3>
+<div class="price-table-wrap"><table class="price-table">
+<thead><tr><th>Jenis</th><th>Harga Standar</th></tr></thead>
+<tbody>
+<tr><td>Jati + Taekwondo 3mm</td><td><input id="pp_dps_jati" type="text" inputmode="numeric" pattern="[0-9]*"></td></tr>
+<tr><td>Kamper + Triplek 4mm</td><td><input id="pp_dps_kamper" type="text" inputmode="numeric" pattern="[0-9]*"></td></tr>
+<tr><td>Meranti + Triplek 4mm</td><td><input id="pp_dps_meranti" type="text" inputmode="numeric" pattern="[0-9]*"></td></tr>
+<tr><td>Bayur + Triplek 4mm</td><td><input id="pp_dps_bayur" type="text" inputmode="numeric" pattern="[0-9]*"></td></tr>
+</tbody></table></div>
+</div>
+
+<div class="price-section">
+<h3>🪟 Daun Jendela + Kaca 5mm T3,5 (40/50×150)</h3>
+<div class="price-table-wrap"><table class="price-table">
+<thead><tr><th>Jenis Kayu</th><th>Harga</th></tr></thead>
+<tbody>
+<tr><td>Jati</td><td><input id="pp_djk_jati" type="text" inputmode="numeric" pattern="[0-9]*"></td></tr>
+<tr><td>Kamper Oven</td><td><input id="pp_djk_kamper" type="text" inputmode="numeric" pattern="[0-9]*"></td></tr>
+<tr><td>Meranti Oven</td><td><input id="pp_djk_meranti" type="text" inputmode="numeric" pattern="[0-9]*"></td></tr>
+<tr><td>Bayur</td><td><input id="pp_djk_bayur" type="text" inputmode="numeric" pattern="[0-9]*"></td></tr>
+<tr><td><strong>Potongan jika Tanpa Kaca</strong></td><td><input id="pp_djk_potongan" type="text" inputmode="numeric" pattern="[0-9]*"></td></tr>
+</tbody></table></div>
+</div>
+
+<div class="price-section">
+<h3>🔩 Perlengkapan</h3>
+<div class="price-table-wrap"><table class="price-table">
+<thead><tr><th>Paket</th><th>Harga</th></tr></thead>
+<tbody>
+<tr><td>Pintu Single — Kunci besar SLG + engsel</td><td><input id="pp_pl_single" type="text" inputmode="numeric" pattern="[0-9]*"></td></tr>
+<tr><td>Pintu Dobel — Kunci B Pelor IGM + selot tanam + engsel + hendel 4</td><td><input id="pp_pl_dobel" type="text" inputmode="numeric" pattern="[0-9]*"></td></tr>
+<tr><td>Jendela — Engsel + selot kenife + hak angin</td><td><input id="pp_pl_jendela" type="text" inputmode="numeric" pattern="[0-9]*"></td></tr>
+</tbody></table></div>
+</div>
+
+<div class="price-section" id="customTablesSection">
+<h3>📦 Produk Tambahan (Kelola Tabel &amp; Produk)</h3>
+<div class="note-box">Buat kategori produk sendiri di sini. Setiap tabel yang Anda buat otomatis muncul sebagai kalkulator baru di tab "Kalkulator Produk", dan produk di dalamnya bisa ditambah/edit/hapus kapan saja.</div>
+<div id="customTablesWrap"></div>
+<button class="btn-secondary" onclick="showAddTableForm()">➕ Tambah Tabel Baru</button>
+<div id="addTableForm" style="display:none;margin-top:12px;padding:12px;border:1px dashed var(--border);border-radius:8px">
+<div class="product-row">
+<div class="field" style="flex:2 1 220px"><label>Judul Tabel</label><input id="newTableTitle" placeholder="Contoh: Railing Tangga Kayu"></div>
+<div class="field" style="flex:2 1 260px"><label>Jenis Tabel</label>
+<select id="newTableKolom">
+<option value="3">3 Kolom — Nama, Harga/Meter, Harga Standar (bisa hitung ukuran custom)</option>
+<option value="2">2 Kolom — Nama, Harga (pilih langsung, tanpa hitung ukuran)</option>
+</select></div>
+</div>
+<div class="product-row">
+<button class="btn-success" onclick="createCustomTable()">✔️ Buat Tabel</button>
+<button class="btn-light" onclick="hideAddTableForm()">Batal</button>
+</div>
+</div>
+</div>
+
+<button class="btn-success" onclick="savePrices()">💾 Simpan Harga</button>
+<button class="btn-light" onclick="resetPrices()">↺ Reset ke Harga 2026</button>
+</div>
+</section>
+
+<!-- ==============================
+     PRODUK
+================================ -->
+<section id="tab-kalkulator" class="panel no-print tab-panel">
+<div class="title">🧮 Kalkulator Produk</div>
+
+<!-- 1 KUSEN PINTU -->
+<div class="product">
+<div class="product-header">🚪 1. Kusen Pintu ISI</div>
+<div class="product-body">
+<div class="product-row">
+<div class="field"><label>Jenis Kayu</label>
+<select id="p1_kayu" onchange="toggleCustom('p1')">
+<option value="jati">Jati Super Jabar</option>
+<option value="kamper">Kamper Samarinda Oven</option>
+<option value="meranti">Meranti Merah Oven</option>
+<option value="bayur">Bayur Lokal Non Oven</option>
+<option value="custom">-- CUSTOM UKURAN --</option>
+</select></div>
+<div class="field"><label>Qty</label><input id="p1_qty" type="number" value="1" min="1"></div>
+<button class="btn-primary" onclick="tambahPoint1()">Tambah</button>
+</div>
+<div id="p1_custom_box" class="custom">
+<div class="field"><label>Jenis Kayu</label>
+<select id="p1_custom_kayu">
+<option value="jati">Jati Super Jabar</option>
+<option value="kamper">Kamper Samarinda Oven</option>
+<option value="meranti">Meranti Merah Oven</option>
+<option value="bayur">Bayur Lokal Non Oven</option>
+</select></div>
+<div class="field"><label>Lebar (cm)</label><input id="p1_l" type="number" value="82"></div>
+<div class="field"><label>Tinggi (cm)</label><input id="p1_t" type="number" value="205"></div>
+<div class="field"><label>Pembulatan Ukuran</label>
+<select id="p1_round"><option value="5">Kelipatan 5 cm</option><option value="10">Kelipatan 10 cm</option><option value="15">Kelipatan 15 cm</option><option value="20">Kelipatan 20 cm</option><option value="25">Kelipatan 25 cm</option><option value="30">Kelipatan 30 cm</option><option value="40">Kelipatan 40 cm</option><option value="50">Kelipatan 50 cm</option><option value="0">Tanpa Pembulatan</option></select></div>
+<div class="field"><label>Pembulatan Harga</label>
+<select id="p1_price_round"><option value="10000" selected>Ke atas Rp10.000</option><option value="15000">Ke atas Rp15.000</option><option value="20000">Ke atas Rp20.000</option><option value="25000">Ke atas Rp25.000</option><option value="0">Tanpa Pembulatan</option></select></div>
+<div id="p1_preview" class="preview-price">💡 Isi ukuran untuk melihat estimasi harga</div>
+</div>
+<div class="field note-row"><label>Catatan (opsional)</label><input id="p1_note" placeholder="Contoh: pintu depan, kayu pilihan, dll"></div>
+<div id="p1_finish_row" class="field note-row" style="display:none"><button class="btn-success" style="width:100%" onclick="finishEditProduct('p1')">✅ Selesai Edit — Simpan &amp; Kembali ke Nota</button></div>
+</div>
+</div>
+
+<!-- 2 KUSEN JENDELA -->
+<div class="product">
+<div class="product-header">🪟 2. Kusen Jendela U LL</div>
+<div class="product-body">
+<div class="product-row">
+<div class="field"><label>Jenis Kayu</label>
+<select id="p2_kayu" onchange="toggleCustom('p2')">
+<option value="jati">Jati Super Jabar</option>
+<option value="kamper">Kamper Samarinda Oven</option>
+<option value="meranti">Meranti Merah Oven</option>
+<option value="bayur">Bayur Lokal Non Oven</option>
+<option value="custom">-- CUSTOM UKURAN --</option>
+</select></div>
+<div class="field"><label>Qty</label><input id="p2_qty" type="number" value="1" min="1"></div>
+<button class="btn-primary" onclick="tambahPoint2()">Tambah</button>
+</div>
+<div id="p2_custom_box" class="custom">
+<div class="field"><label>Jenis Kayu</label>
+<select id="p2_custom_kayu">
+<option value="jati">Jati Super Jabar</option>
+<option value="kamper">Kamper Samarinda Oven</option>
+<option value="meranti">Meranti Merah Oven</option>
+<option value="bayur">Bayur Lokal Non Oven</option>
+</select></div>
+<div class="field"><label>Lebar (cm)</label><input id="p2_l" type="number" value="43"></div>
+<div class="field"><label>Tinggi (cm)</label><input id="p2_t" type="number" value="152"></div>
+<div class="field"><label>Pembulatan Ukuran</label>
+<select id="p2_round"><option value="5">Kelipatan 5 cm</option><option value="10">Kelipatan 10 cm</option><option value="15">Kelipatan 15 cm</option><option value="20">Kelipatan 20 cm</option><option value="25">Kelipatan 25 cm</option><option value="30">Kelipatan 30 cm</option><option value="40">Kelipatan 40 cm</option><option value="50">Kelipatan 50 cm</option><option value="0">Tanpa Pembulatan</option></select></div>
+<div class="field"><label>Pembulatan Harga</label>
+<select id="p2_price_round"><option value="10000" selected>Ke atas Rp10.000</option><option value="15000">Ke atas Rp15.000</option><option value="20000">Ke atas Rp20.000</option><option value="25000">Ke atas Rp25.000</option><option value="0">Tanpa Pembulatan</option></select></div>
+<div id="p2_preview" class="preview-price">💡 Isi ukuran untuk melihat estimasi harga</div>
+</div>
+<div class="field note-row"><label>Catatan (opsional)</label><input id="p2_note" placeholder="Contoh: jendela kamar depan"></div>
+<div id="p2_finish_row" class="field note-row" style="display:none"><button class="btn-success" style="width:100%" onclick="finishEditProduct('p2')">✅ Selesai Edit — Simpan &amp; Kembali ke Nota</button></div>
+</div>
+</div>
+
+<!-- 3 KUSEN BOVENLICHT + KACA -->
+<div class="product">
+<div class="product-header">🪟 3. Kusen Bovenlicht + Kaca 5mm</div>
+<div class="product-body">
+<div class="product-row">
+<div class="field"><label>Jenis Kayu</label>
+<select id="pkb_kayu" onchange="toggleCustom('pkb')">
+<option value="jati">Jati Super Jabar</option>
+<option value="kamper">Kamper Samarinda Oven</option>
+<option value="meranti">Meranti Merah Oven</option>
+<option value="bayur">Bayur Lokal Non Oven</option>
+<option value="custom">-- CUSTOM UKURAN --</option>
+</select></div>
+<div class="field"><label>Qty</label><input id="pkb_qty" type="number" value="1" min="1"></div>
+<button class="btn-primary" onclick="tambahPointKB()">Tambah</button>
+</div>
+<div id="pkb_custom_box" class="custom">
+<div class="field"><label>Jenis Kayu</label>
+<select id="pkb_custom_kayu">
+<option value="jati">Jati Super Jabar</option>
+<option value="kamper">Kamper Samarinda Oven</option>
+<option value="meranti">Meranti Merah Oven</option>
+<option value="bayur">Bayur Lokal Non Oven</option>
+</select></div>
+<div class="field"><label>Lebar (cm)</label><input id="pkb_l" type="number" value="40"></div>
+<div class="field"><label>Tinggi (cm)</label><input id="pkb_t" type="number" value="100"></div>
+<div class="field"><label>Pembulatan Ukuran</label>
+<select id="pkb_round"><option value="5">Kelipatan 5 cm</option><option value="10">Kelipatan 10 cm</option><option value="15">Kelipatan 15 cm</option><option value="20">Kelipatan 20 cm</option><option value="25">Kelipatan 25 cm</option><option value="30">Kelipatan 30 cm</option><option value="40">Kelipatan 40 cm</option><option value="50">Kelipatan 50 cm</option><option value="0">Tanpa Pembulatan</option></select></div>
+<div class="field"><label>Pembulatan Harga</label>
+<select id="pkb_price_round"><option value="10000" selected>Ke atas Rp10.000</option><option value="15000">Ke atas Rp15.000</option><option value="20000">Ke atas Rp20.000</option><option value="25000">Ke atas Rp25.000</option><option value="0">Tanpa Pembulatan</option></select></div>
+<div id="pkb_preview" class="preview-price">💡 Isi ukuran untuk melihat estimasi harga</div>
+</div>
+<div class="field note-row" style="display:flex;align-items:center;gap:8px">
+<input type="checkbox" id="pkb_tanpakaca" style="width:auto">
+<label for="pkb_tanpakaca" style="margin:0;text-transform:none;font-size:13px;font-weight:600;color:var(--ink)">Tanpa Kaca (kurangi biaya kaca dari harga)</label>
+</div>
+<div class="field note-row"><label>Catatan (opsional)</label><input id="pkb_note" placeholder="Contoh: kaca bening / es"></div>
+<div id="pkb_finish_row" class="field note-row" style="display:none"><button class="btn-success" style="width:100%" onclick="finishEditProduct('pkb')">✅ Selesai Edit — Simpan &amp; Kembali ke Nota</button></div>
+</div>
+</div>
+
+<!-- 4 LOSTER PINTU -->
+<div class="product">
+<div class="product-header">🌬️ 4. Loster / Ventilasi Kusen Pintu</div>
+<div class="product-body">
+<div class="product-row">
+<div class="field"><label>Jenis Kayu</label>
+<select id="p3_kayu" onchange="toggleCustom('p3')">
+<option value="jati">Jati</option><option value="kamper">Kamper</option><option value="meranti">Meranti</option><option value="bayur">Bayur</option>
+<option value="custom">-- CUSTOM UKURAN --</option>
+</select></div>
+<div class="field"><label>Qty</label><input id="p3_qty" type="number" value="1" min="1"></div>
+<button class="btn-primary" onclick="tambahPoint3()">Tambah</button>
+</div>
+<div id="p3_custom_box" class="custom">
+<div class="field"><label>Jenis Kayu</label>
+<select id="p3_custom_kayu">
+<option value="jati">Jati</option><option value="kamper">Kamper</option><option value="meranti">Meranti</option><option value="bayur">Bayur</option>
+</select></div>
+<div class="field"><label>Lebar (cm)</label><input id="p3_l" type="number" value="82"></div>
+<div class="field"><label>Tinggi (cm)</label><input id="p3_t" type="number" value="30"></div>
+<div class="field"><label>Pembulatan Ukuran</label>
+<select id="p3_round"><option value="5">Kelipatan 5 cm</option><option value="10">Kelipatan 10 cm</option><option value="15">Kelipatan 15 cm</option><option value="20">Kelipatan 20 cm</option><option value="25">Kelipatan 25 cm</option><option value="30">Kelipatan 30 cm</option><option value="40">Kelipatan 40 cm</option><option value="50">Kelipatan 50 cm</option><option value="0">Tanpa Pembulatan</option></select></div>
+<div class="field"><label>Pembulatan Harga</label>
+<select id="p3_price_round"><option value="10000" selected>Ke atas Rp10.000</option><option value="15000">Ke atas Rp15.000</option><option value="20000">Ke atas Rp20.000</option><option value="25000">Ke atas Rp25.000</option><option value="0">Tanpa Pembulatan</option></select></div>
+<div id="p3_preview" class="preview-price">💡 Isi ukuran untuk melihat estimasi harga</div>
+</div>
+<div class="field note-row"><label>Catatan (opsional)</label><input id="p3_note" placeholder="Contoh: ukuran menyesuaikan kusen"></div>
+<div id="p3_finish_row" class="field note-row" style="display:none"><button class="btn-success" style="width:100%" onclick="finishEditProduct('p3')">✅ Selesai Edit — Simpan &amp; Kembali ke Nota</button></div>
+</div>
+</div>
+
+<!-- 4 LOSTER JENDELA -->
+<div class="product">
+<div class="product-header">🌬️ 5. Loster / Ventilasi Kusen Jendela</div>
+<div class="product-body">
+<div class="product-row">
+<div class="field"><label>Jenis Kayu</label>
+<select id="p4_kayu" onchange="toggleCustom('p4')">
+<option value="jati">Jati</option><option value="kamper">Kamper</option><option value="meranti">Meranti</option><option value="bayur">Bayur</option>
+<option value="custom">-- CUSTOM UKURAN --</option>
+</select></div>
+<div class="field"><label>Qty</label><input id="p4_qty" type="number" value="1" min="1"></div>
+<button class="btn-primary" onclick="tambahPoint4()">Tambah</button>
+</div>
+<div id="p4_custom_box" class="custom">
+<div class="field"><label>Jenis Kayu</label>
+<select id="p4_custom_kayu">
+<option value="jati">Jati</option><option value="kamper">Kamper</option><option value="meranti">Meranti</option><option value="bayur">Bayur</option>
+</select></div>
+<div class="field"><label>Lebar (cm)</label><input id="p4_l" type="number" value="43"></div>
+<div class="field"><label>Tinggi (cm)</label><input id="p4_t" type="number" value="20"></div>
+<div class="field"><label>Pembulatan Ukuran</label>
+<select id="p4_round"><option value="5">Kelipatan 5 cm</option><option value="10">Kelipatan 10 cm</option><option value="15">Kelipatan 15 cm</option><option value="20">Kelipatan 20 cm</option><option value="25">Kelipatan 25 cm</option><option value="30">Kelipatan 30 cm</option><option value="40">Kelipatan 40 cm</option><option value="50">Kelipatan 50 cm</option><option value="0">Tanpa Pembulatan</option></select></div>
+<div class="field"><label>Pembulatan Harga</label>
+<select id="p4_price_round"><option value="10000" selected>Ke atas Rp10.000</option><option value="15000">Ke atas Rp15.000</option><option value="20000">Ke atas Rp20.000</option><option value="25000">Ke atas Rp25.000</option><option value="0">Tanpa Pembulatan</option></select></div>
+<div id="p4_preview" class="preview-price">💡 Isi ukuran untuk melihat estimasi harga</div>
+</div>
+<div class="field note-row"><label>Catatan (opsional)</label><input id="p4_note" placeholder="Contoh: ukuran menyesuaikan kusen"></div>
+<div id="p4_finish_row" class="field note-row" style="display:none"><button class="btn-success" style="width:100%" onclick="finishEditProduct('p4')">✅ Selesai Edit — Simpan &amp; Kembali ke Nota</button></div>
+</div>
+</div>
+
+<!-- 5 DAUN PINTU FULL -->
+<div class="product">
+<div class="product-header">🚪 6. Daun Pintu Kayu Full ISI</div>
+<div class="product-body">
+<div class="product-row">
+<div class="field"><label>Jenis Kayu</label>
+<select id="p5_kayu" onchange="toggleCustom('p5')">
+<option value="jati">Jati Jabar</option>
+<option value="kamper">Kamper Samarinda Oven</option>
+<option value="meranti">Meranti Merah Oven</option>
+<option value="bayur">Bayur Lokal Non Oven</option>
+<option value="custom">-- CUSTOM UKURAN --</option>
+</select></div>
+<div class="field"><label>Qty</label><input id="p5_qty" type="number" value="1" min="1"></div>
+<button class="btn-primary" onclick="tambahPoint5()">Tambah</button>
+</div>
+<div id="p5_custom_box" class="custom">
+<div class="field"><label>Jenis</label>
+<select id="p5_custom_kayu">
+<option value="jati">Jati Jabar</option>
+<option value="kamper">Kamper Samarinda Oven</option>
+<option value="meranti">Meranti Merah Oven</option>
+<option value="bayur">Bayur Lokal Non Oven</option>
+</select></div>
+<div class="field"><label>Lebar (cm)</label><input id="p5_l" type="number" value="83"></div>
+<div class="field"><label>Tinggi (cm)</label><input id="p5_t" type="number" value="203"></div>
+<div class="field"><label>Pembulatan Ukuran</label>
+<select id="p5_round"><option value="5">Kelipatan 5 cm</option><option value="10">Kelipatan 10 cm</option><option value="15">Kelipatan 15 cm</option><option value="20">Kelipatan 20 cm</option><option value="25">Kelipatan 25 cm</option><option value="30">Kelipatan 30 cm</option><option value="40">Kelipatan 40 cm</option><option value="50">Kelipatan 50 cm</option><option value="0">Tanpa Pembulatan</option></select></div>
+<div class="field"><label>Pembulatan Harga</label>
+<select id="p5_price_round"><option value="10000" selected>Ke atas Rp10.000</option><option value="15000">Ke atas Rp15.000</option><option value="20000">Ke atas Rp20.000</option><option value="25000">Ke atas Rp25.000</option><option value="0">Tanpa Pembulatan</option></select></div>
+<div id="p5_preview" class="preview-price">💡 Isi ukuran untuk melihat estimasi harga</div>
+</div>
+<div class="field note-row"><label>Catatan (opsional)</label><input id="p5_note" placeholder="Contoh: motif panel, dll"></div>
+<div id="p5_finish_row" class="field note-row" style="display:none"><button class="btn-success" style="width:100%" onclick="finishEditProduct('p5')">✅ Selesai Edit — Simpan &amp; Kembali ke Nota</button></div>
+</div>
+</div>
+
+<!-- 6 SEMI -->
+<div class="product">
+<div class="product-header">🚪 7. Daun Pintu Triplek Semi Kayu</div>
+<div class="product-body">
+<div class="product-row">
+<div class="field"><label>Jenis</label>
+<select id="p6_kayu" onchange="toggleCustom('p6')">
+<option value="jati">Jati + Taekwondo 3mm</option>
+<option value="kamper">Kamper + Triplek 4mm</option>
+<option value="meranti">Meranti + Triplek 4mm</option>
+<option value="bayur">Bayur + Triplek 4mm</option>
+<option value="custom">-- CUSTOM UKURAN --</option>
+</select></div>
+<div class="field"><label>Qty</label><input id="p6_qty" type="number" value="1" min="1"></div>
+<button class="btn-primary" onclick="tambahPoint6()">Tambah</button>
+</div>
+<div id="p6_custom_box" class="custom">
+<div class="field"><label>Jenis</label>
+<select id="p6_custom_kayu">
+<option value="jati">Jati + Taekwondo 3mm</option>
+<option value="kamper">Kamper + Triplek 4mm</option>
+<option value="meranti">Meranti + Triplek 4mm</option>
+<option value="bayur">Bayur + Triplek 4mm</option>
+</select></div>
+<div class="field"><label>Lebar (cm)</label><input id="p6_l" type="number" value="81"></div>
+<div class="field"><label>Tinggi (cm)</label><input id="p6_t" type="number" value="202"></div>
+<div class="field"><label>Pembulatan Ukuran</label>
+<select id="p6_round"><option value="5">Kelipatan 5 cm</option><option value="10">Kelipatan 10 cm</option><option value="15">Kelipatan 15 cm</option><option value="20">Kelipatan 20 cm</option><option value="25">Kelipatan 25 cm</option><option value="30">Kelipatan 30 cm</option><option value="40">Kelipatan 40 cm</option><option value="50">Kelipatan 50 cm</option><option value="0">Tanpa Pembulatan</option></select></div>
+<div class="field"><label>Pembulatan Harga</label>
+<select id="p6_price_round"><option value="10000" selected>Ke atas Rp10.000</option><option value="15000">Ke atas Rp15.000</option><option value="20000">Ke atas Rp20.000</option><option value="25000">Ke atas Rp25.000</option><option value="0">Tanpa Pembulatan</option></select></div>
+<div id="p6_preview" class="preview-price">💡 Isi ukuran untuk melihat estimasi harga</div>
+</div>
+<div class="field note-row"><label>Catatan (opsional)</label><input id="p6_note" placeholder="Contoh: warna cat, dll"></div>
+<div id="p6_finish_row" class="field note-row" style="display:none"><button class="btn-success" style="width:100%" onclick="finishEditProduct('p6')">✅ Selesai Edit — Simpan &amp; Kembali ke Nota</button></div>
+</div>
+</div>
+
+<!-- 7 JENDELA KACA -->
+<div class="product">
+<div class="product-header">🪟 8. Daun Jendela + Kaca 5mm T3,5</div>
+<div class="product-body">
+<div class="product-row">
+<div class="field"><label>Jenis Kayu</label>
+<select id="p7_kayu" onchange="toggleCustom('p7')">
+<option value="jati">Jati</option><option value="kamper">Kamper Oven</option><option value="meranti">Meranti Oven</option><option value="bayur">Bayur</option>
+<option value="custom">-- CUSTOM UKURAN --</option>
+</select></div>
+<div class="field"><label>Qty</label><input id="p7_qty" type="number" value="1" min="1"></div>
+<button class="btn-primary" onclick="tambahPoint7()">Tambah</button>
+</div>
+<div id="p7_custom_box" class="custom">
+<div class="field"><label>Jenis Kayu</label>
+<select id="p7_custom_kayu">
+<option value="jati">Jati</option><option value="kamper">Kamper Oven</option><option value="meranti">Meranti Oven</option><option value="bayur">Bayur</option>
+</select></div>
+<div class="field"><label>Lebar (cm)</label><input id="p7_l" type="number" value="45"></div>
+<div class="field"><label>Tinggi (cm)</label><input id="p7_t" type="number" value="150"></div>
+<div class="field"><label>Pembulatan Ukuran</label>
+<select id="p7_round"><option value="5">Kelipatan 5 cm</option><option value="10">Kelipatan 10 cm</option><option value="15">Kelipatan 15 cm</option><option value="20">Kelipatan 20 cm</option><option value="25">Kelipatan 25 cm</option><option value="30">Kelipatan 30 cm</option><option value="40">Kelipatan 40 cm</option><option value="50">Kelipatan 50 cm</option><option value="0">Tanpa Pembulatan</option></select></div>
+<div class="field"><label>Pembulatan Harga</label>
+<select id="p7_price_round"><option value="10000" selected>Ke atas Rp10.000</option><option value="15000">Ke atas Rp15.000</option><option value="20000">Ke atas Rp20.000</option><option value="25000">Ke atas Rp25.000</option><option value="0">Tanpa Pembulatan</option></select></div>
+<div id="p7_preview" class="preview-price">💡 Isi ukuran untuk melihat estimasi harga</div>
+</div>
+<div class="field note-row" style="display:flex;align-items:center;gap:8px">
+<input type="checkbox" id="p7_tanpakaca" style="width:auto">
+<label for="p7_tanpakaca" style="margin:0;text-transform:none;font-size:13px;font-weight:600;color:var(--ink)">Tanpa Kaca (kurangi biaya kaca dari harga)</label>
+</div>
+<div class="field note-row"><label>Catatan (opsional)</label><input id="p7_note" placeholder="Contoh: kaca bening / es"></div>
+<div id="p7_finish_row" class="field note-row" style="display:none"><button class="btn-success" style="width:100%" onclick="finishEditProduct('p7')">✅ Selesai Edit — Simpan &amp; Kembali ke Nota</button></div>
+</div>
+</div>
+
+<!-- 8 -->
+<div class="product">
+<div class="product-header">🔑 9. Perlengkapan Pintu Single</div>
+<div class="product-body">
+<div class="product-row">
+<div class="field"><label>Paket</label><input value="Kunci besar SLG + engsel" readonly></div>
+<div class="field"><label>Qty</label><input id="p8_qty" type="number" value="1" min="1"></div>
+<button class="btn-primary" onclick="tambahPoint8()">Tambah</button>
+</div>
+<div class="field note-row"><label>Catatan (opsional)</label><input id="p8_note" placeholder="Contoh: warna kunci"></div>
+<div id="p8_finish_row" class="field note-row" style="display:none"><button class="btn-success" style="width:100%" onclick="finishEditProduct('p8')">✅ Selesai Edit — Simpan &amp; Kembali ke Nota</button></div>
+</div>
+</div>
+
+<!-- 9 -->
+<div class="product">
+<div class="product-header">🔐 10. Perlengkapan Pintu Dobel</div>
+<div class="product-body">
+<div class="product-row">
+<div class="field"><label>Paket</label><input value="Kunci B Pelor IGM + selot + engsel + hendel 4" readonly></div>
+<div class="field"><label>Qty</label><input id="p9_qty" type="number" value="1" min="1"></div>
+<button class="btn-primary" onclick="tambahPoint9()">Tambah</button>
+</div>
+<div class="field note-row"><label>Catatan (opsional)</label><input id="p9_note" placeholder="Contoh: warna kunci"></div>
+<div id="p9_finish_row" class="field note-row" style="display:none"><button class="btn-success" style="width:100%" onclick="finishEditProduct('p9')">✅ Selesai Edit — Simpan &amp; Kembali ke Nota</button></div>
+</div>
+</div>
+
+<!-- 10 -->
+<div class="product">
+<div class="product-header">🔧 11. Perlengkapan Jendela</div>
+<div class="product-body">
+<div class="product-row">
+<div class="field"><label>Paket</label><input value="Engsel + selot kenife + hak angin" readonly></div>
+<div class="field"><label>Qty</label><input id="p10_qty" type="number" value="1" min="1"></div>
+<button class="btn-primary" onclick="tambahPoint10()">Tambah</button>
+</div>
+<div class="field note-row"><label>Catatan (opsional)</label><input id="p10_note" placeholder="Contoh: warna hak angin"></div>
+<div id="p10_finish_row" class="field note-row" style="display:none"><button class="btn-success" style="width:100%" onclick="finishEditProduct('p10')">✅ Selesai Edit — Simpan &amp; Kembali ke Nota</button></div>
+</div>
+</div>
+
+<!-- PRODUK TAMBAHAN (dari Kelola Tabel & Kelola Produk di Pengaturan Harga) -->
+<div id="customProductsContainer"></div>
+
+</section>
+
+<!-- ==============================
+     NOTA / KERANJANG
+================================ -->
+<section id="tab-nota" class="panel tab-panel">
+<div class="title">
+    <span>🧾 Nota</span>
+    <button class="btn-secondary no-print" onclick="clearCart()" style="font-size:12px;padding:7px 10px">Kosongkan</button>
+</div>
+
+<div id="invoiceHead" class="invoice-head"></div>
+
+<div id="cartList"></div>
+</section>
+
+<!-- ==============================
+     RINGKASAN PEMBAYARAN
+================================ -->
+<section id="tab-pembayaran" class="panel summary tab-panel">
+<div class="title" style="border-color:#bfe3ca">💰 Ringkasan Pembayaran</div>
+
+<div class="grid no-print">
+<div class="field"><label>Diskon (Rp)</label><input id="diskonNominal" type="number" placeholder="0" oninput="updateSummary()"></div>
+<div class="field"><label>Diskon (%)</label><input id="diskonPersen" type="number" placeholder="0" oninput="updateSummary()"></div>
+<div class="field"><label>Uang Muka / DP (Rp)</label><input id="dpAmount" type="number" placeholder="0" oninput="updateSummary()"></div>
+</div>
+
+<div class="summary-row"><span>Subtotal</span><span id="sumSubtotal">Rp 0</span></div>
+<div class="summary-row"><span>Diskon</span><span id="sumDiskon">Rp 0</span></div>
+<div class="summary-row total"><span>Total</span><span id="sumTotal">Rp 0</span></div>
+<div class="summary-row"><span>Uang Muka / DP</span><span id="sumDp">Rp 0</span></div>
+<div class="summary-row remaining"><span>Sisa Bayar</span><span id="sumSisa">Rp 0</span></div>
+
+<div id="statusBadge" class="status"></div>
+
+<div class="button-group no-print">
+<button class="btn-primary" onclick="window.print()">🖨️ Cetak / PDF</button>
+<button class="btn-success" onclick="sendWhatsApp()">🟢 Kirim WhatsApp</button>
+<button class="btn-warning" onclick="notaBaru()">🆕 Nota Baru</button>
+</div>
+</section>
+
+<!-- ==============================
+     RIWAYAT NOTA
+================================ -->
+<section id="tab-riwayat" class="panel no-print tab-panel">
+<div class="title">
+    <span>📜 Riwayat Nota</span>
+    <span id="historyCount" style="font-size:12px;color:#7a6f5d;font-weight:700"></span>
+</div>
+<div class="subtitle">Semua nota yang pernah dibuat tersimpan otomatis di sini — termasuk yang belum lunas / masih DP — supaya tidak hilang saat Anda membuat nota baru untuk pelanggan lain. Buka lagi kapan saja untuk melanjutkan atau update status bayarnya.</div>
+
+<div class="button-group" style="margin-top:0;margin-bottom:10px">
+<button class="btn-primary" id="histTabSemua" onclick="renderHistory('semua')">Semua</button>
+<button class="btn-light" id="histTabBelum" onclick="renderHistory('belum')">🔴 Belum Bayar</button>
+<button class="btn-light" id="histTabDp" onclick="renderHistory('dp')">🟡 DP</button>
+<button class="btn-light" id="histTabLunas" onclick="renderHistory('lunas')">✅ Lunas</button>
+</div>
+
+<div class="field" style="margin-bottom:14px">
+<label>🔍 Cari Nota</label>
+<input id="historySearch" placeholder="Cari nama pelanggan, no. WA, no. nota, atau nama proyek..." oninput="renderHistory()">
+</div>
+
+<div id="historyList"></div>
+</section>
+
+</div>
+
+</div>
+
+</div>
+
+<div id="toast"></div>
+
+<script src="script.js"></script>
+
+</body>
+</html>

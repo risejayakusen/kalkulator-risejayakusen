@@ -283,14 +283,17 @@ async function savePrices(auto=false){
     showToast(auto ? 'Harga disimpan otomatis' : 'Harga tersimpan ✔');
 }
 async function resetPrices(){
-    if(!confirm('Kembalikan semua harga ke Daftar Harga 2026 default? (Tabel & produk tambahan buatan Anda sendiri tidak akan terhapus)')) return;
+    if(!confirm('Kembalikan semua harga ke Daftar Harga 2026 default? (Tabel & produk tambahan, serta daftar Poin buatan Anda sendiri tidak akan terhapus)')) return;
     const keepCustom = prices.customTables;
+    const keepPoints = prices.pointsCatalog;
     prices = clone(DEFAULT_PRICES);
     prices.customTables = keepCustom || [];
+    prices.pointsCatalog = keepPoints || [];
     fillPriceInputs();
     await savePrices();
     renderCustomTables();
     renderCustomProducts();
+    renderPointsCatalog();
 }
 /* Katalog "Produk Tambahan" (Kelola Tabel & Kelola Produk) — disimpan di
    prices.customTables, dikirim/diterima apa adanya oleh /api/data karena
@@ -301,6 +304,7 @@ function ensureCustomTables(){
         if(!Array.isArray(t.items)) t.items = [];
         if(t.kolom!==2 && t.kolom!==3) t.kolom = 3;
     });
+    if(!Array.isArray(prices.pointsCatalog)) prices.pointsCatalog = [];
 }
 function loadPrices(){
     const saved = appDataCache.prices;
@@ -455,6 +459,11 @@ function showFinishEditRow(prefix){
 }
 async function addToCart(item){
     if(!invoiceNumber) await startNewInvoice();
+    const prefix = item.raw && item.raw.productKey;
+    if(prefix){
+        const checkedPoints = getCheckedPointTexts(prefix);
+        if(checkedPoints.length) item.detail = (item.detail ? item.detail+' • ' : '') + checkedPoints.join(' • ');
+    }
     item.id = 'c'+Date.now()+Math.random().toString(16).slice(2);
     item.total = item.unitPrice * item.qty;
     const meta = item.raw ? PRODUCT_META[item.raw.productKey] : null;
@@ -911,6 +920,87 @@ async function finishEditProduct(prefix){
 }
 
 /* ==========================================================================
+   KELOLA POIN — daftar keterangan/spesifikasi singkat yang bisa dipakai
+   ulang untuk produk mana saja.
+   ==========================================================================
+   Disimpan sebagai daftar tunggal di prices.pointsCatalog: [{id, text}].
+   Setiap blok produk di Kalkulator (bawaan maupun tambahan) otomatis dapat
+   checklist untuk memilih poin mana yang berlaku pada item itu; poin yang
+   dicentang ditambahkan ke "detail" item saat masuk keranjang — jadi ikut
+   otomatis ke Nota, Riwayat, Cetak, dan pesan WhatsApp lewat mekanisme yang
+   sudah ada, tanpa perlu mengubah satu-satu fungsi tambahPointN().
+   ========================================================================== */
+function renderPointsCatalog(){
+    const wrap = document.getElementById('pointsCatalogWrap');
+    if(!wrap) return;
+    ensureCustomTables();
+    if(prices.pointsCatalog.length===0){
+        wrap.innerHTML = '<div class="empty">Belum ada poin. Klik "Tambah Poin" di bawah.</div>';
+        return;
+    }
+    wrap.innerHTML = '<div class="price-table-wrap"><table class="price-table"><thead><tr><th>Poin</th><th></th></tr></thead><tbody>'
+        + prices.pointsCatalog.map(p=>`<tr>
+            <td><input value="${escHtml(p.text)}" onchange="updatePoint('${p.id}',this.value)"></td>
+            <td><button class="btn-danger" onclick="deletePoint('${p.id}')">🗑</button></td>
+        </tr>`).join('')
+        + '</tbody></table></div>';
+}
+async function addPoint(){
+    const text = prompt('Tulis poin/keterangan baru (contoh: "Termasuk pemasangan", "Garansi 1 tahun"):');
+    if(text===null || !text.trim()) return;
+    ensureCustomTables();
+    prices.pointsCatalog.push({ id:newCatalogId('pt_'), text:text.trim() });
+    await savePrices();
+    renderPointsCatalog();
+    renderPointsChecklists();
+    showToast('Poin ditambahkan.');
+}
+async function updatePoint(pointId, value){
+    const p = prices.pointsCatalog.find(x=>x.id===pointId); if(!p) return;
+    p.text = value.trim() || p.text;
+    await savePrices(true);
+    renderPointsChecklists();
+}
+async function deletePoint(pointId){
+    if(!confirm('Hapus poin ini?')) return;
+    prices.pointsCatalog = prices.pointsCatalog.filter(x=>x.id!==pointId);
+    await savePrices();
+    renderPointsCatalog();
+    renderPointsChecklists();
+}
+
+/* ---------- Suntikkan checklist poin ke setiap blok produk di Kalkulator ---------- */
+function pointsChecklistHTML(prefix){
+    if(!prices.pointsCatalog || prices.pointsCatalog.length===0) return '';
+    const boxes = prices.pointsCatalog.map(p=>
+        `<label class="point-check"><input type="checkbox" value="${escHtml(p.text)}"> ${escHtml(p.text)}</label>`
+    ).join('');
+    return `<div id="${prefix}_points" class="field note-row points-box"><label>Poin Tambahan (opsional)</label><div class="points-list">${boxes}</div></div>`;
+}
+function renderPointsChecklistFor(prefix){
+    const noteField = document.getElementById(prefix+'_note');
+    if(!noteField) return;
+    const noteRow = noteField.closest('.note-row') || noteField.parentElement;
+    if(!noteRow) return;
+    const old = document.getElementById(prefix+'_points');
+    if(old) old.remove();
+    if(!prices.pointsCatalog || prices.pointsCatalog.length===0) return;
+    const holder = document.createElement('div');
+    holder.innerHTML = pointsChecklistHTML(prefix);
+    noteRow.parentNode.insertBefore(holder.firstElementChild, noteRow);
+}
+function renderPointsChecklists(){
+    Object.keys(PRODUCT_META).forEach(prefix=> renderPointsChecklistFor(prefix));
+}
+function getCheckedPointTexts(prefix){
+    const box = document.getElementById(prefix+'_points');
+    if(!box) return [];
+    const texts = Array.from(box.querySelectorAll('input[type=checkbox]:checked')).map(el=>el.value);
+    box.querySelectorAll('input[type=checkbox]:checked').forEach(el=> el.checked=false);
+    return texts;
+}
+
+/* ==========================================================================
    PRODUK TAMBAHAN — "Kelola Tabel" & "Kelola Produk"
    ==========================================================================
    Katalog bebas yang bisa ditambah/edit/hapus sendiri oleh pengguna dari tab
@@ -1120,6 +1210,7 @@ function renderCustomProducts(){
 
     wrap.innerHTML = usable.map(t=>customProductBlockHTML(t)).join('');
     usable.forEach(t=>{ if(t.kolom===3) wireLivePreviewForPrefix(t.id); });
+    renderPointsChecklists();
 }
 
 async function tambahCustomProduct(tableId){
@@ -1447,6 +1538,7 @@ async function bootApp(){
     wirePriceAutoSave();
     renderCustomTables();
     renderCustomProducts();
+    renderPointsCatalog();
     ['customerName','customerPhone','customerAddress','projectName','diskonNominal','diskonPersen','dpAmount'].forEach(id=>{
         const el = document.getElementById(id);
         if(el) el.addEventListener('change', saveState);

@@ -405,6 +405,9 @@ button:focus-visible{ outline:3px solid var(--wood-light); outline-offset:2px; }
     color:#5a3d1a;
     padding:10px; border-radius:8px; font-size:12px; margin-bottom:14px;
 }
+.points-box .points-list{ display:flex; flex-wrap:wrap; gap:6px 16px; margin-top:4px; }
+.points-box .point-check{ display:flex; align-items:center; gap:6px; font-size:13px; font-weight:400; cursor:pointer; }
+.points-box .point-check input{ width:auto; }
 
 .invoice-head{
     line-height:1.75; font-size:13px; margin-bottom:16px;

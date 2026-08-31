@@ -101,6 +101,32 @@ Buka `http://localhost:3000`.
 
 ---
 
+## Fitur baru: Produk Tambahan (Kelola Tabel & Kelola Produk)
+
+Di tab **Pengaturan Harga**, di bagian bawah (setelah tabel Perlengkapan), ada
+seksi **"📦 Produk Tambahan"**:
+
+- **Kelola Tabel**: klik "➕ Tambah Tabel Baru" untuk membuat kategori produk
+  baru sendiri — beri judul, lalu pilih:
+  - **3 Kolom** (Nama, Harga/Meter, Harga Standar) — cocok untuk produk yang
+    perlu dihitung per ukuran custom (kayu keliling), sama seperti Kusen/Loster.
+  - **2 Kolom** (Nama, Harga) — untuk produk dengan harga tetap, tinggal pilih
+    & isi qty (seperti Perlengkapan).
+  - Tabel bisa diganti judul (✏️) atau dihapus (🗑) kapan saja.
+- **Kelola Produk**: di dalam setiap tabel, klik "➕ Tambah Produk" untuk
+  menambah varian/produk baru, isi harganya langsung di kolom tabel, atau
+  hapus (🗑) baris yang tidak dipakai.
+
+Begitu sebuah tabel punya minimal 1 produk, **otomatis muncul blok
+kalkulatornya sendiri** di tab "Kalkulator Produk" (di bagian paling bawah,
+setelah Perlengkapan Jendela) — lengkap dengan pilihan ukuran custom (untuk
+tabel 3 kolom) atau pilih-langsung (untuk tabel 2 kolom), dan otomatis bisa
+ditambahkan ke Nota, muncul di Riwayat, Cetak, dan pesan WhatsApp — persis
+seperti 9 kategori produk bawaan.
+
+Menghapus sebuah tabel produk tambahan tidak mengubah nota yang sudah
+tersimpan di Riwayat Nota sebelumnya.
+
 ## Catatan
 
 - **Backup data**: karena semua data ada di database Upstash, cukup

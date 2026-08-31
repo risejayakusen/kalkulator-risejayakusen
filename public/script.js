@@ -149,6 +149,8 @@ const PRICE_FIELDS = [
 function getPath(obj, path){ return path.split('.').reduce((o,k)=> o && o[k], obj); }
 function setPath(obj, path, val){ const keys=path.split('.'); let o=obj; for(let i=0;i<keys.length-1;i++){ o=o[keys[i]]; } o[keys[keys.length-1]]=val; }
 function clone(obj){ return JSON.parse(JSON.stringify(obj)); }
+function escHtml(s){ return String(s==null?'':s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function newCatalogId(prefix){ return prefix + Date.now().toString(36) + Math.random().toString(36).slice(2,6); }
 
 let prices = clone(DEFAULT_PRICES);
 let cart = [];
@@ -281,10 +283,24 @@ async function savePrices(auto=false){
     showToast(auto ? 'Harga disimpan otomatis' : 'Harga tersimpan ✔');
 }
 async function resetPrices(){
-    if(!confirm('Kembalikan semua harga ke Daftar Harga 2026 default?')) return;
+    if(!confirm('Kembalikan semua harga ke Daftar Harga 2026 default? (Tabel & produk tambahan buatan Anda sendiri tidak akan terhapus)')) return;
+    const keepCustom = prices.customTables;
     prices = clone(DEFAULT_PRICES);
+    prices.customTables = keepCustom || [];
     fillPriceInputs();
     await savePrices();
+    renderCustomTables();
+    renderCustomProducts();
+}
+/* Katalog "Produk Tambahan" (Kelola Tabel & Kelola Produk) — disimpan di
+   prices.customTables, dikirim/diterima apa adanya oleh /api/data karena
+   backend memperlakukan "prices" sebagai blob JSON bebas. */
+function ensureCustomTables(){
+    if(!Array.isArray(prices.customTables)) prices.customTables = [];
+    prices.customTables.forEach(t=>{
+        if(!Array.isArray(t.items)) t.items = [];
+        if(t.kolom!==2 && t.kolom!==3) t.kolom = 3;
+    });
 }
 function loadPrices(){
     const saved = appDataCache.prices;
@@ -293,6 +309,7 @@ function loadPrices(){
     } else {
         prices = clone(DEFAULT_PRICES);
     }
+    ensureCustomTables();
     // migration guard: data lama mungkin masih pakai struktur loster yang datar
     if(!prices.losterPintu || typeof prices.losterPintu.standard !== 'object'){
         prices.losterPintu = clone(DEFAULT_PRICES.losterPintu);
@@ -409,15 +426,16 @@ function wirePriceAutoSave(){
     });
 }
 
-function wireLivePreview(){
-    Object.keys(CUSTOM_CONFIG).forEach(prefix=>{
-        ['_custom_kayu','_l','_t','_round','_price_round','_qty'].forEach(suffix=>{
-            const el = document.getElementById(prefix+suffix);
-            if(el) el.addEventListener('input', ()=>updatePreview(prefix));
-        });
-        const tanpaKacaEl = document.getElementById(prefix+'_tanpakaca');
-        if(tanpaKacaEl) tanpaKacaEl.addEventListener('change', ()=>updatePreview(prefix));
+function wireLivePreviewForPrefix(prefix){
+    ['_custom_kayu','_l','_t','_round','_price_round','_qty'].forEach(suffix=>{
+        const el = document.getElementById(prefix+suffix);
+        if(el) el.addEventListener('input', ()=>updatePreview(prefix));
     });
+    const tanpaKacaEl = document.getElementById(prefix+'_tanpakaca');
+    if(tanpaKacaEl) tanpaKacaEl.addEventListener('change', ()=>updatePreview(prefix));
+}
+function wireLivePreview(){
+    Object.keys(CUSTOM_CONFIG).forEach(prefix=> wireLivePreviewForPrefix(prefix));
 }
 
 /* ---------------- CART ---------------- */
@@ -506,6 +524,10 @@ async function editItem(id){
     if(meta.hasKaca){
         const tk = document.getElementById(prefix+'_tanpakaca');
         if(tk) tk.checked = !!raw.tanpaKaca;
+    }
+    if(meta.hasPilihan){
+        const pilihanSel = document.getElementById(prefix+'_pilihan');
+        if(pilihanSel && raw.itemId) pilihanSel.value = raw.itemId;
     }
     const qtyEl = document.getElementById(prefix+'_qty');
     if(qtyEl) qtyEl.value = raw.qty || 1;
@@ -888,6 +910,265 @@ async function finishEditProduct(prefix){
     showTab('nota');
 }
 
+/* ==========================================================================
+   PRODUK TAMBAHAN — "Kelola Tabel" & "Kelola Produk"
+   ==========================================================================
+   Katalog bebas yang bisa ditambah/edit/hapus sendiri oleh pengguna dari tab
+   Pengaturan Harga, disimpan di prices.customTables. Setiap tabel yang dibuat
+   otomatis mendapat blok kalkulatornya sendiri di tab Kalkulator Produk,
+   memakai mesin yang sama (PRODUCT_META/CUSTOM_CONFIG/TAMBAH_FUNCS/addToCart)
+   dengan 9 kategori produk bawaan — jadi otomatis ikut masuk ke Nota,
+   Riwayat, Cetak, dan pesan WhatsApp.
+
+   - kolom 3 -> "Ukuran Custom": Nama Produk | Harga/Meter | Harga Standar.
+     Berperilaku sama seperti Kusen Pintu/Jendela/Loster (rumus keliling).
+   - kolom 2 -> "Pilihan Harga Tetap": Nama Produk | Harga. Tidak ada
+     kalkulator ukuran, tinggal pilih & qty (seperti Perlengkapan).
+   ========================================================================== */
+
+/* ---------- Kelola Tabel (render di Pengaturan Harga) ---------- */
+function renderCustomTables(){
+    const wrap = document.getElementById('customTablesWrap');
+    if(!wrap) return;
+    ensureCustomTables();
+    if(prices.customTables.length===0){
+        wrap.innerHTML = '<div class="empty">Belum ada tabel produk tambahan. Klik "Tambah Tabel Baru" di bawah.</div>';
+        return;
+    }
+    wrap.innerHTML = prices.customTables.map(t=>{
+        const rows = t.items.map(it=>{
+            if(t.kolom===3){
+                return `<tr>
+                    <td><input value="${escHtml(it.label)}" onchange="updateCustomItem('${t.id}','${it.id}','label',this.value)"></td>
+                    <td><input type="text" inputmode="numeric" pattern="[0-9]*" value="${formatIntegerWithDots(it.perMeter)}" onfocus="this.value=cleanNumericString(this.value)" onblur="this.value=formatIntegerWithDots(this.value); updateCustomItem('${t.id}','${it.id}','perMeter',this.value)"></td>
+                    <td><input type="text" inputmode="numeric" pattern="[0-9]*" value="${formatIntegerWithDots(it.standard)}" onfocus="this.value=cleanNumericString(this.value)" onblur="this.value=formatIntegerWithDots(this.value); updateCustomItem('${t.id}','${it.id}','standard',this.value)"></td>
+                    <td><button class="btn-danger" onclick="deleteCustomItem('${t.id}','${it.id}')">🗑</button></td>
+                </tr>`;
+            }
+            return `<tr>
+                <td><input value="${escHtml(it.label)}" onchange="updateCustomItem('${t.id}','${it.id}','label',this.value)"></td>
+                <td><input type="text" inputmode="numeric" pattern="[0-9]*" value="${formatIntegerWithDots(it.harga)}" onfocus="this.value=cleanNumericString(this.value)" onblur="this.value=formatIntegerWithDots(this.value); updateCustomItem('${t.id}','${it.id}','harga',this.value)"></td>
+                <td><button class="btn-danger" onclick="deleteCustomItem('${t.id}','${it.id}')">🗑</button></td>
+            </tr>`;
+        }).join('');
+        const head = t.kolom===3
+            ? '<tr><th>Nama Produk</th><th>Harga / Meter</th><th>Harga Standar</th><th></th></tr>'
+            : '<tr><th>Nama Produk</th><th>Harga</th><th></th></tr>';
+        const emptyRow = t.items.length===0 ? `<tr><td colspan="${t.kolom===3?4:3}" style="color:var(--wood-dark);opacity:.7">Belum ada produk di tabel ini.</td></tr>` : '';
+        return `<div class="price-section">
+<h3 style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
+<span>📦 ${escHtml(t.title)} <small style="font-weight:400;opacity:.7">(${t.kolom} kolom)</small></span>
+<span>
+<button class="btn-light" onclick="renameCustomTable('${t.id}')">✏️ Ganti Judul</button>
+<button class="btn-danger" onclick="deleteCustomTable('${t.id}')">🗑 Hapus Tabel</button>
+</span>
+</h3>
+<div class="price-table-wrap"><table class="price-table"><thead>${head}</thead><tbody>${rows}${emptyRow}</tbody></table></div>
+<button class="btn-light" onclick="addCustomItem('${t.id}')">➕ Tambah Produk</button>
+</div>`;
+    }).join('');
+}
+function showAddTableForm(){
+    const f = document.getElementById('addTableForm');
+    if(f) f.style.display = 'block';
+}
+function hideAddTableForm(){
+    const f = document.getElementById('addTableForm');
+    if(f) f.style.display = 'none';
+    const t = document.getElementById('newTableTitle');
+    if(t) t.value = '';
+}
+async function createCustomTable(){
+    const titleEl = document.getElementById('newTableTitle');
+    const title = (titleEl.value||'').trim();
+    if(!title){ alert('Judul tabel wajib diisi.'); return; }
+    const kolom = document.getElementById('newTableKolom').value==='2' ? 2 : 3;
+    ensureCustomTables();
+    prices.customTables.push({ id:newCatalogId('ct_'), title, kolom, items: [] });
+    hideAddTableForm();
+    await savePrices();
+    renderCustomTables();
+    renderCustomProducts();
+    showToast('Tabel "'+title+'" dibuat. Sekarang tambahkan produknya.');
+}
+async function renameCustomTable(tableId){
+    const t = prices.customTables.find(x=>x.id===tableId); if(!t) return;
+    const val = prompt('Judul baru untuk tabel ini:', t.title);
+    if(val===null || !val.trim()) return;
+    t.title = val.trim();
+    await savePrices();
+    renderCustomTables();
+    renderCustomProducts();
+}
+async function deleteCustomTable(tableId){
+    const t = prices.customTables.find(x=>x.id===tableId); if(!t) return;
+    if(!confirm('Hapus tabel "'+t.title+'" beserta semua produk di dalamnya?\n\n(Nota lama yang sudah memakai produk ini di Riwayat Nota tidak akan berubah.)')) return;
+    prices.customTables = prices.customTables.filter(x=>x.id!==tableId);
+    delete PRODUCT_META[tableId]; delete CUSTOM_CONFIG[tableId]; delete TAMBAH_FUNCS[tableId];
+    await savePrices();
+    renderCustomTables();
+    renderCustomProducts();
+}
+
+/* ---------- Kelola Produk (baris di dalam sebuah tabel) ---------- */
+async function addCustomItem(tableId){
+    const t = prices.customTables.find(x=>x.id===tableId); if(!t) return;
+    const label = prompt('Nama produk / varian baru:');
+    if(label===null || !label.trim()) return;
+    const item = { id:newCatalogId('it_'), label: label.trim() };
+    if(t.kolom===3){ item.perMeter = 0; item.standard = 0; } else { item.harga = 0; }
+    t.items.push(item);
+    await savePrices();
+    renderCustomTables();
+    renderCustomProducts();
+    showToast('Produk "'+item.label+'" ditambahkan — isi harganya di tabel.');
+}
+async function updateCustomItem(tableId, itemId, field, value){
+    const t = prices.customTables.find(x=>x.id===tableId); if(!t) return;
+    const it = t.items.find(x=>x.id===itemId); if(!it) return;
+    if(field==='label') it.label = value.trim() || it.label;
+    else it[field] = parseNumericValue(value);
+    await savePrices(true);
+    renderCustomTables();
+    renderCustomProducts();
+}
+async function deleteCustomItem(tableId, itemId){
+    const t = prices.customTables.find(x=>x.id===tableId); if(!t) return;
+    if(!confirm('Hapus produk ini dari tabel?')) return;
+    t.items = t.items.filter(x=>x.id!==itemId);
+    await savePrices();
+    renderCustomTables();
+    renderCustomProducts();
+}
+
+/* ---------- Render blok Kalkulator untuk tiap tabel produk tambahan ---------- */
+const ROUND_DIM_OPTIONS = '<option value="5">Kelipatan 5 cm</option><option value="10">Kelipatan 10 cm</option><option value="15">Kelipatan 15 cm</option><option value="20">Kelipatan 20 cm</option><option value="25">Kelipatan 25 cm</option><option value="30">Kelipatan 30 cm</option><option value="40">Kelipatan 40 cm</option><option value="50">Kelipatan 50 cm</option><option value="0">Tanpa Pembulatan</option>';
+const ROUND_PRICE_OPTIONS = '<option value="10000" selected>Ke atas Rp10.000</option><option value="15000">Ke atas Rp15.000</option><option value="20000">Ke atas Rp20.000</option><option value="25000">Ke atas Rp25.000</option><option value="0">Tanpa Pembulatan</option>';
+
+function customProductBlockHTML(t){
+    const prefix = t.id;
+    if(t.kolom===3){
+        const opts = t.items.map(it=>`<option value="${it.id}">${escHtml(it.label)} (Standar)</option>`).join('');
+        const customOpts = t.items.map(it=>`<option value="${it.id}">${escHtml(it.label)}</option>`).join('');
+        return `<div class="product">
+<div class="product-header">📦 ${escHtml(t.title)}</div>
+<div class="product-body">
+<div class="product-row">
+<div class="field"><label>Pilihan</label>
+<select id="${prefix}_kayu" onchange="toggleCustom('${prefix}')">
+${opts}
+<option value="custom">-- UKURAN CUSTOM --</option>
+</select></div>
+<div class="field"><label>Qty</label><input id="${prefix}_qty" type="number" value="1" min="1"></div>
+<button class="btn-primary" onclick="tambahCustomProduct('${t.id}')">Tambah</button>
+</div>
+<div id="${prefix}_custom_box" class="custom">
+<div class="field"><label>Pilihan</label>
+<select id="${prefix}_custom_kayu">${customOpts}</select></div>
+<div class="field"><label>Lebar (cm)</label><input id="${prefix}_l" type="number" value="100"></div>
+<div class="field"><label>Tinggi (cm)</label><input id="${prefix}_t" type="number" value="100"></div>
+<div class="field"><label>Pembulatan Ukuran</label><select id="${prefix}_round">${ROUND_DIM_OPTIONS}</select></div>
+<div class="field"><label>Pembulatan Harga</label><select id="${prefix}_price_round">${ROUND_PRICE_OPTIONS}</select></div>
+<div id="${prefix}_preview" class="preview-price">💡 Isi ukuran untuk melihat estimasi harga</div>
+</div>
+<div class="field note-row"><label>Catatan (opsional)</label><input id="${prefix}_note" placeholder="Catatan tambahan"></div>
+<div id="${prefix}_finish_row" class="field note-row" style="display:none"><button class="btn-success" style="width:100%" onclick="finishEditProduct('${prefix}')">✅ Selesai Edit — Simpan &amp; Kembali ke Nota</button></div>
+</div>
+</div>`;
+    }
+    const opts2 = t.items.map(it=>`<option value="${it.id}">${escHtml(it.label)} — ${formatRupiah(it.harga)}</option>`).join('');
+    return `<div class="product">
+<div class="product-header">📦 ${escHtml(t.title)}</div>
+<div class="product-body">
+<div class="product-row">
+<div class="field"><label>Pilihan</label><select id="${prefix}_pilihan">${opts2}</select></div>
+<div class="field"><label>Qty</label><input id="${prefix}_qty" type="number" value="1" min="1"></div>
+<button class="btn-primary" onclick="tambahCustomProduct('${t.id}')">Tambah</button>
+</div>
+<div class="field note-row"><label>Catatan (opsional)</label><input id="${prefix}_note" placeholder="Catatan tambahan"></div>
+<div id="${prefix}_finish_row" class="field note-row" style="display:none"><button class="btn-success" style="width:100%" onclick="finishEditProduct('${prefix}')">✅ Selesai Edit — Simpan &amp; Kembali ke Nota</button></div>
+</div>
+</div>`;
+}
+
+function renderCustomProducts(){
+    const wrap = document.getElementById('customProductsContainer');
+    if(!wrap) return;
+    ensureCustomTables();
+
+    // Bersihkan registrasi dinamis lama sebelum menulis ulang (tabel/produk
+    // bisa saja sudah dihapus/diubah sejak render terakhir).
+    Object.keys(PRODUCT_META).forEach(k=>{ if(k.indexOf('ct_')===0) delete PRODUCT_META[k]; });
+    Object.keys(CUSTOM_CONFIG).forEach(k=>{ if(k.indexOf('ct_')===0) delete CUSTOM_CONFIG[k]; });
+    Object.keys(TAMBAH_FUNCS).forEach(k=>{ if(k.indexOf('ct_')===0) delete TAMBAH_FUNCS[k]; });
+
+    const usable = prices.customTables.filter(t=>t.items && t.items.length>0);
+    if(usable.length===0){ wrap.innerHTML=''; return; }
+
+    usable.forEach((t, idx)=>{
+        const prefix = t.id;
+        PRODUCT_META[prefix] = { order: 100+idx, hasWood: t.kolom===3, hasKaca:false, hasPilihan: t.kolom===2 };
+        if(t.kolom===3){
+            CUSTOM_CONFIG[prefix] = { type:'keliling', getPrices: ()=>{
+                const map = {};
+                t.items.forEach(it=> map[it.id]=it.perMeter||0);
+                return map;
+            }};
+        }
+        TAMBAH_FUNCS[prefix] = ()=>tambahCustomProduct(t.id);
+    });
+
+    wrap.innerHTML = usable.map(t=>customProductBlockHTML(t)).join('');
+    usable.forEach(t=>{ if(t.kolom===3) wireLivePreviewForPrefix(t.id); });
+}
+
+async function tambahCustomProduct(tableId){
+    const t = prices.customTables.find(x=>x.id===tableId);
+    if(!t){ showToast('Tabel produk ini sudah tidak ada.'); return; }
+    const prefix = t.id;
+    const qtyEl = document.getElementById(prefix+'_qty');
+    const noteEl = document.getElementById(prefix+'_note');
+    if(!qtyEl || !noteEl) return;
+    const qty = Math.max(1, parseInt(qtyEl.value)||1);
+    const note = (noteEl.value||'').trim();
+    let unitPrice, label, detail, raw;
+
+    if(t.kolom===3){
+        const sel = document.getElementById(prefix+'_kayu').value;
+        if(sel==='custom'){
+            const itemId = document.getElementById(prefix+'_custom_kayu').value;
+            const it = t.items.find(x=>x.id===itemId);
+            const lebar = parseFloat(document.getElementById(prefix+'_l').value)||0;
+            const tinggi = parseFloat(document.getElementById(prefix+'_t').value)||0;
+            const dimStep = document.getElementById(prefix+'_round').value;
+            const priceStep = document.getElementById(prefix+'_price_round').value;
+            const rl = roundUp(lebar, dimStep), rt = roundUp(tinggi, dimStep);
+            const meter = (2*rt + rl)/100;
+            const rawPrice = meter * (it ? (it.perMeter||0) : 0);
+            unitPrice = roundUp(rawPrice, priceStep);
+            label = `${t.title} Custom (${it?it.label:'?'})`;
+            detail = `${rl}×${rt} cm (dibulatkan) ≈ ${meter.toFixed(2)} m × ${formatRupiah(it?(it.perMeter||0):0)}/m`;
+            raw = {productKey:prefix, mode:'custom', wood:itemId, lebar, tinggi, round:dimStep, priceRound:priceStep, qty, note};
+        } else {
+            const it = t.items.find(x=>x.id===sel);
+            unitPrice = it ? (it.standard||0) : 0;
+            label = `${t.title} Standar (${it?it.label:'?'})`;
+            detail = 'Harga standar';
+            raw = {productKey:prefix, mode:sel, wood:sel, qty, note};
+        }
+    } else {
+        const sel = document.getElementById(prefix+'_pilihan').value;
+        const it = t.items.find(x=>x.id===sel);
+        unitPrice = it ? (it.harga||0) : 0;
+        label = t.title + (it ? ' — '+it.label : '');
+        detail = it ? it.label : '';
+        raw = {productKey:prefix, qty, note, itemId:sel};
+    }
+    if(note) detail += (detail ? ' • ' : '') + note;
+    await addToCart({label, detail, qty, unitPrice, raw});
+    noteEl.value = '';
+}
+
 /* ---------------- WHATSAPP ---------------- */
 function sendWhatsApp(){
     if(cart.length===0){ showToast('Nota masih kosong'); return; }
@@ -1164,6 +1445,8 @@ async function bootApp(){
     renderHistory('semua');
     wireLivePreview();
     wirePriceAutoSave();
+    renderCustomTables();
+    renderCustomProducts();
     ['customerName','customerPhone','customerAddress','projectName','diskonNominal','diskonPersen','dpAmount'].forEach(id=>{
         const el = document.getElementById(id);
         if(el) el.addEventListener('change', saveState);

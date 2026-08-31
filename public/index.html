@@ -202,6 +202,27 @@
 </tbody></table></div>
 </div>
 
+<div class="price-section" id="customTablesSection">
+<h3>📦 Produk Tambahan (Kelola Tabel &amp; Produk)</h3>
+<div class="note-box">Buat kategori produk sendiri di sini. Setiap tabel yang Anda buat otomatis muncul sebagai kalkulator baru di tab "Kalkulator Produk", dan produk di dalamnya bisa ditambah/edit/hapus kapan saja.</div>
+<div id="customTablesWrap"></div>
+<button class="btn-secondary" onclick="showAddTableForm()">➕ Tambah Tabel Baru</button>
+<div id="addTableForm" style="display:none;margin-top:12px;padding:12px;border:1px dashed var(--border);border-radius:8px">
+<div class="product-row">
+<div class="field" style="flex:2 1 220px"><label>Judul Tabel</label><input id="newTableTitle" placeholder="Contoh: Railing Tangga Kayu"></div>
+<div class="field" style="flex:2 1 260px"><label>Jenis Tabel</label>
+<select id="newTableKolom">
+<option value="3">3 Kolom — Nama, Harga/Meter, Harga Standar (bisa hitung ukuran custom)</option>
+<option value="2">2 Kolom — Nama, Harga (pilih langsung, tanpa hitung ukuran)</option>
+</select></div>
+</div>
+<div class="product-row">
+<button class="btn-success" onclick="createCustomTable()">✔️ Buat Tabel</button>
+<button class="btn-light" onclick="hideAddTableForm()">Batal</button>
+</div>
+</div>
+</div>
+
 <button class="btn-success" onclick="savePrices()">💾 Simpan Harga</button>
 <button class="btn-light" onclick="resetPrices()">↺ Reset ke Harga 2026</button>
 </div>
@@ -540,6 +561,9 @@
 <div id="p10_finish_row" class="field note-row" style="display:none"><button class="btn-success" style="width:100%" onclick="finishEditProduct('p10')">✅ Selesai Edit — Simpan &amp; Kembali ke Nota</button></div>
 </div>
 </div>
+
+<!-- PRODUK TAMBAHAN (dari Kelola Tabel & Kelola Produk di Pengaturan Harga) -->
+<div id="customProductsContainer"></div>
 
 </section>
 
